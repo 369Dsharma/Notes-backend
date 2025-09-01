@@ -506,8 +506,8 @@ app.post("/verify-otp", async (req, res) => {
 
 
 
-app.listen(process.env.PORT, ()=>{
-    console.log(`Server is listening on port 8080`)
+app.listen(process.env.PORT || 8080 , ()=>{
+    console.log(`Server is listening on port`)
 });
 
 module.exports = app;
