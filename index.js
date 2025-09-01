@@ -370,7 +370,7 @@ app.put("/update-note-pinned/:noteId", authenticateToken, async (req,res)=>{
     }
   });
 
-  // Google login
+  // Google login feature
 
   app.post("/auth/google", async (req, res) => {
   try {
@@ -433,6 +433,7 @@ app.put("/update-note-pinned/:noteId", authenticateToken, async (req,res)=>{
 function make6() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
+
 
 // Send OTP
 app.post("/send-otp", async (req, res) => {
