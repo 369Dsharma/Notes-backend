@@ -9,7 +9,6 @@ mongoose.connect(process.env.MONGODB_URI)
     .catch((err)=>{
         console.log("Error in connecting to DB",err);
     });
-
 const User = require("./models/user.model");
 const Note = require("./models/note.model");
 
@@ -20,6 +19,7 @@ const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 const {authenticateToken} = require("./utilities");
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const bcrypt = require("bcrypt");
 
 const OtpToken = require("./models/otpToken.model");
 const { sendOtpMail } = require("./utils/mailer");
@@ -75,10 +75,14 @@ app.post("/create-account", async (req, res) => {
       });
     }
 
+     // Password Hashing
+    const hashedPassword = await bcrypt.hash(password, 10);
+    console.log("🔐 Hashed password:", hashedPassword);
+    
     const user = new User({
       fullName,
       email,
-      password,
+      password : hashedPassword,
     });
 
     await user.save();
@@ -89,7 +93,12 @@ app.post("/create-account", async (req, res) => {
 
     return res.json({
       error: false,
-      user,
+      user: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        createdOn: user.createdOn
+      },
       accessToken,
       message: "Registration Successful",
     });
@@ -122,7 +131,10 @@ app.post("/login", async (req, res) => {
     return res.status(400).json({ message: "User not found" });
   }
 
-  if(userInfo.email == email && userInfo.password == password)
+  // COMPARE HASHED PASSWORD
+  const isPasswordValid = await bcrypt.compare(password, userInfo.password);
+
+  if(userInfo.email == email && isPasswordValid)
   {
     const user = {user : userInfo};
     const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
@@ -166,6 +178,52 @@ app.get("/get-user" , authenticateToken,  async (req,res)=>{
   });
 
 
+});
+
+// update user profile
+
+app.put("/update-user", authenticateToken, async (req, res) => {
+  try {
+    const { user } = req.user;
+    const { fullName } = req.body;
+
+    if (!fullName) {
+      return res.status(400).json({ 
+        error: true, 
+        message: "Full Name is required" 
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { fullName },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ 
+        error: true, 
+        message: "User not found" 
+      });
+    }
+
+    return res.json({
+      error: false,
+      user: {
+        fullName: updatedUser.fullName,
+        email: updatedUser.email,
+        _id: updatedUser._id,
+        createdOn: updatedUser.createdOn,
+      },
+      message: "Profile updated successfully",
+    });
+  } catch (error) {
+    console.error("Error in /update-user:", error);
+    return res.status(500).json({ 
+      error: true, 
+      message: "Internal Server Error" 
+    });
+  }
 });
 
 // add-note api
@@ -474,10 +532,12 @@ app.post("/verify-otp", async (req, res) => {
         if (!fullName || !password) {
           return res.status(400).json({ error: true, message: "Name and password required for signup" });
         }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
         user = await User.create({
           fullName,
           email,
-          password,
+          password:hashedPassword,
           authProvider: "local",
           emailVerified: true,
         });
